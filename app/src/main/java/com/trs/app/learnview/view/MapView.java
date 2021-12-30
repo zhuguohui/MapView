@@ -45,6 +45,7 @@ public class MapView extends View {
     private Paint paint;
     private int vectorWidth = -1;
     private Matrix matrix = new Matrix();
+    private Matrix invertMatrix = new Matrix();
     private float viewScale = -1f;
     private float userScale = 1.0f;
     private boolean initFinish = false;
@@ -53,6 +54,7 @@ public class MapView extends View {
     private int offsetX, offsetY;
     private Scroller scroller;
     private float[] points;
+    private float[] pointsFocusBefore;
     private float focusX,focusY;
     private ScaleGestureDetector scaleGestureDetector;
     private boolean showDebugInfo=false;
@@ -79,17 +81,21 @@ public class MapView extends View {
     private ScaleGestureDetector.OnScaleGestureListener  scaleGestureListener=new ScaleGestureDetector.OnScaleGestureListener() {
 
         float lastScaleFactor;
+        boolean mapPoint=false;
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
             float scaleFactor = detector.getScaleFactor();
             float[] points=new float[]{detector.getFocusX(),detector.getFocusY()};
-            matrix.mapPoints(points);
-            focusX=points[0];
-            focusY=points[1];
+            pointsFocusBefore=new float[]{detector.getFocusX(),detector.getFocusY()};
+            if(mapPoint) {
+                mapPoint=false;
+                invertMatrix.mapPoints(points);
+                focusX = points[0];
+                focusY = points[1];
+            }
             float change = scaleFactor - lastScaleFactor;
             lastScaleFactor=scaleFactor;
             userScale+=change;
-            Log.i("zzz", "onScale: scaleFactor="+scaleFactor+" change="+change+" userScale="+userScale);
             postInvalidate();
             return false;
         }
@@ -97,6 +103,7 @@ public class MapView extends View {
         @Override
         public boolean onScaleBegin(ScaleGestureDetector detector) {
             lastScaleFactor=1.0f;
+            mapPoint=true;
             return true;
         }
 
@@ -123,7 +130,7 @@ public class MapView extends View {
             float x = event.getX();
             float y = event.getY();
             points = new float[]{x, y};
-            matrix.mapPoints(points);
+            invertMatrix.mapPoints(points);
             for (ProvinceItem item : list) {
                 if (item.onTouch(points[0], points[1])) {
                     result = true;
@@ -135,8 +142,8 @@ public class MapView extends View {
 
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-            offsetX += -distanceX;
-            offsetY += -distanceY;
+            offsetX += -distanceX/userScale;
+            offsetY += -distanceY/userScale;
             postInvalidate();
             return true;
         }
@@ -148,8 +155,8 @@ public class MapView extends View {
 
         @Override
         public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            scroller.fling(offsetX, offsetY, (int) velocityX, (int) velocityY,MIN_SCROLL,
-                   MAX_SCROLL,MIN_SCROLL,MAX_SCROLL);
+            scroller.fling(offsetX, offsetY, (int) ((int) velocityX/userScale), (int) ((int) velocityY/userScale),MIN_SCROLL,
+                 MAX_SCROLL,MIN_SCROLL,  MAX_SCROLL);
             postInvalidate();
             return true;
         }
@@ -196,6 +203,8 @@ public class MapView extends View {
         }
     };
 
+
+
     @Override
     public void computeScroll() {
         if (scroller.computeScrollOffset()) {
@@ -215,13 +224,14 @@ public class MapView extends View {
         }
         if (viewScale != -1) {
             float scale=viewScale*userScale;
-            canvas.translate(offsetX, offsetY);
-            canvas.scale(scale, scale,focusX,focusY);
-
             matrix.reset();
-            matrix.postTranslate(-offsetX, -offsetY);
-            matrix.postScale(1.0f / scale, 1.0f / scale,focusX,focusY);
+            matrix.postTranslate(offsetX,offsetY);
+            matrix.postScale(scale, scale,focusX,focusY);
+
+            invertMatrix.reset();
+            matrix.invert(invertMatrix);
         }
+        canvas.setMatrix(matrix);
         canvas.drawColor(bgColor);
         if (initFinish) {
             for (ProvinceItem item : list) {
@@ -241,10 +251,18 @@ public class MapView extends View {
             paint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(points[0], points[1], 20, paint);
         }
-        paint.setColor(Color.GREEN);
         paint.setColor(Color.BLUE);
+        paint.setStyle(Paint.Style.FILL);
         canvas.drawCircle(focusX,focusY,20,paint);
-        canvas.restore();
+
+
+        if(pointsFocusBefore!=null) {
+            paint.setColor(Color.RED);
+            paint.setStyle(Paint.Style.FILL);
+            canvas.drawCircle(pointsFocusBefore[0], pointsFocusBefore[1], 20, paint);
+        }
+
+
     }
 }
 
@@ -260,7 +278,6 @@ class ProvinceItem {
     public boolean onTouch(float x, float y) {
         if (region.contains((int) x, (int) y)) {
             isSelected = true;
-            Log.i("zzz", "provinceItem i=: " + index + " 被点击");
             return true;
         }
         isSelected = false;
