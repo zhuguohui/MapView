@@ -4,9 +4,11 @@
     <option name="filePathToZoomLevelMap">
       <map>
         <entry key="..\:/GitHub/LearnView/app/src/main/res/drawable-v24/ic_launcher_foreground.xml" value="0.33240740740740743" />
+        <entry key="..\:/GitHub/LearnView/app/src/main/res/drawable/ic_african.xml" value="0.31203703703703706" />
         <entry key="..\:/GitHub/LearnView/app/src/main/res/drawable/ic_launcher_background.xml" value="0.33240740740740743" />
         <entry key="..\:/GitHub/LearnView/app/src/main/res/drawable/ic_map.xml" value="0.3452502553626149" />
         <entry key="..\:/GitHub/LearnView/app/src/main/res/layout/activity_main.xml" value="0.33177083333333335" />
+        <entry key="..\:/GitHub/LearnView/app/src/main/res/raw/ic_african.xml" value="1.25" />
       </map>
     </option>
   </component>

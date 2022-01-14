@@ -11,7 +11,6 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
@@ -41,7 +40,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
  * Desc:
  */
 public class MapView extends View {
-    private List<ProvinceItem> list = new ArrayList<>();
+    private List<MapItem> list = new ArrayList<>();
     private Paint paint;
     private int vectorWidth = -1;
     private Matrix matrix = new Matrix();
@@ -55,11 +54,12 @@ public class MapView extends View {
     private Scroller scroller;
     private float[] points;
     private float[] pointsFocusBefore;
-    private float focusX,focusY;
+    private float focusX, focusY;
     private ScaleGestureDetector scaleGestureDetector;
-    private boolean showDebugInfo=false;
-    private static final int MAX_SCROLL=10000;
-    private static final int MIN_SCROLL=-10000;
+    private boolean showDebugInfo = false;
+    private static final int MAX_SCROLL = 10000;
+    private static final int MIN_SCROLL = -10000;
+    private int mapId = R.raw.ic_african;
 
     public MapView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -71,39 +71,38 @@ public class MapView extends View {
         paint = new Paint();
         paint.setAntiAlias(true);
         paint.setColor(Color.GRAY);
-        decodeThread.start();
         scroller = new Scroller(getContext());
         gestureDetector = new GestureDetector(getContext(), onGestureListener);
-        scaleGestureDetector = new ScaleGestureDetector(getContext(),scaleGestureListener);
-
+        scaleGestureDetector = new ScaleGestureDetector(getContext(), scaleGestureListener);
     }
 
-    private ScaleGestureDetector.OnScaleGestureListener  scaleGestureListener=new ScaleGestureDetector.OnScaleGestureListener() {
+    private ScaleGestureDetector.OnScaleGestureListener scaleGestureListener = new ScaleGestureDetector.OnScaleGestureListener() {
 
         float lastScaleFactor;
-        boolean mapPoint=false;
+        boolean mapPoint = false;
+
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
             float scaleFactor = detector.getScaleFactor();
-            float[] points=new float[]{detector.getFocusX(),detector.getFocusY()};
-            pointsFocusBefore=new float[]{detector.getFocusX(),detector.getFocusY()};
-            if(mapPoint) {
-                mapPoint=false;
+            float[] points = new float[]{detector.getFocusX(), detector.getFocusY()};
+            pointsFocusBefore = new float[]{detector.getFocusX(), detector.getFocusY()};
+            if (mapPoint) {
+                mapPoint = false;
                 invertMatrix.mapPoints(points);
                 focusX = points[0];
                 focusY = points[1];
             }
             float change = scaleFactor - lastScaleFactor;
-            lastScaleFactor=scaleFactor;
-            userScale+=change;
+            lastScaleFactor = scaleFactor;
+            userScale += change;
             postInvalidate();
             return false;
         }
 
         @Override
         public boolean onScaleBegin(ScaleGestureDetector detector) {
-            lastScaleFactor=1.0f;
-            mapPoint=true;
+            lastScaleFactor = 1.0f;
+            mapPoint = true;
             return true;
         }
 
@@ -131,7 +130,7 @@ public class MapView extends View {
             float y = event.getY();
             points = new float[]{x, y};
             invertMatrix.mapPoints(points);
-            for (ProvinceItem item : list) {
+            for (MapItem item : list) {
                 if (item.onTouch(points[0], points[1])) {
                     result = true;
                 }
@@ -142,8 +141,8 @@ public class MapView extends View {
 
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-            offsetX += -distanceX/userScale;
-            offsetY += -distanceY/userScale;
+            offsetX += -distanceX / userScale;
+            offsetY += -distanceY / userScale;
             postInvalidate();
             return true;
         }
@@ -155,8 +154,8 @@ public class MapView extends View {
 
         @Override
         public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            scroller.fling(offsetX, offsetY, (int) ((int) velocityX/userScale), (int) ((int) velocityY/userScale),MIN_SCROLL,
-                 MAX_SCROLL,MIN_SCROLL,  MAX_SCROLL);
+            scroller.fling(offsetX, offsetY, (int) ((int) velocityX / userScale), (int) ((int) velocityY / userScale), MIN_SCROLL,
+                    MAX_SCROLL, MIN_SCROLL, MAX_SCROLL);
             postInvalidate();
             return true;
         }
@@ -169,12 +168,22 @@ public class MapView extends View {
         return true;
     }
 
-    private Thread decodeThread = new Thread() {
+    public void setMapId(int mapId) {
+        this.mapId = mapId;
+        userScale=1.0f;
+        offsetY=0;
+        offsetX=0;
+        focusX=0;
+        focusY=0;
+        new Thread(new DecodeRunnable()).start();
+    }
+
+    private class  DecodeRunnable implements Runnable {
         @Override
         public void run() {
             //Dom 解析 SVG文件
 
-            InputStream inputStream = getContext().getResources().openRawResource(R.raw.ic_map);
+            InputStream inputStream = getContext().getResources().openRawResource(mapId);
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
             try {
@@ -186,13 +195,13 @@ public class MapView extends View {
                 String strWidth = rootElement.getAttribute("android:width");
                 vectorWidth = Integer.parseInt(strWidth.replace("dp", ""));
                 NodeList items = rootElement.getElementsByTagName("path");
-
+                list.clear();
                 for (int i = 1; i < items.getLength(); i++) {
                     Element element = (Element) items.item(i);
                     String pathData = element.getAttribute("android:pathData");
                     @SuppressLint("RestrictedApi")
                     Path path = PathParser.createPathFromPathData(pathData);
-                    ProvinceItem item = new ProvinceItem(path, i);
+                    MapItem item = new MapItem(path, i);
                     list.add(item);
                 }
                 initFinish = true;
@@ -202,7 +211,6 @@ public class MapView extends View {
             }
         }
     };
-
 
 
     @Override
@@ -223,10 +231,10 @@ public class MapView extends View {
             viewScale = width * 1.0f / vectorWidth;
         }
         if (viewScale != -1) {
-            float scale=viewScale*userScale;
+            float scale = viewScale * userScale;
             matrix.reset();
-            matrix.postTranslate(offsetX,offsetY);
-            matrix.postScale(scale, scale,focusX,focusY);
+            matrix.postTranslate(offsetX, offsetY);
+            matrix.postScale(scale, scale, focusX, focusY);
 
             invertMatrix.reset();
             matrix.invert(invertMatrix);
@@ -234,7 +242,7 @@ public class MapView extends View {
         canvas.setMatrix(matrix);
         canvas.drawColor(bgColor);
         if (initFinish) {
-            for (ProvinceItem item : list) {
+            for (MapItem item : list) {
                 item.onDraw(canvas, paint);
             }
         }
@@ -242,8 +250,8 @@ public class MapView extends View {
         showDebugInfo(canvas);
     }
 
-    private void showDebugInfo(Canvas canvas){
-        if(!showDebugInfo){
+    private void showDebugInfo(Canvas canvas) {
+        if (!showDebugInfo) {
             return;
         }
         if (points != null) {
@@ -253,10 +261,10 @@ public class MapView extends View {
         }
         paint.setColor(Color.BLUE);
         paint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(focusX,focusY,20,paint);
+        canvas.drawCircle(focusX, focusY, 20, paint);
 
 
-        if(pointsFocusBefore!=null) {
+        if (pointsFocusBefore != null) {
             paint.setColor(Color.RED);
             paint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(pointsFocusBefore[0], pointsFocusBefore[1], 20, paint);
@@ -267,8 +275,7 @@ public class MapView extends View {
 }
 
 
-
-class ProvinceItem {
+ class MapItem {
     Path path;
     private final Region region;
     private boolean isSelected = false;
@@ -284,7 +291,7 @@ class ProvinceItem {
         return false;
     }
 
-    public ProvinceItem(Path path, int index) {
+    public MapItem(Path path, int index) {
         this.path = path;
         rectF = new RectF();
         path.computeBounds(rectF, true);
